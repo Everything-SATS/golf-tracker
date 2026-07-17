@@ -85,8 +85,59 @@
     border: none; padding: 10px; width: 100%; cursor: pointer; text-decoration: underline; }
 
   .scoreboard-strip { display: flex; justify-content: center; gap: 22px; font-size: 0.78rem; color: var(--ink-soft);
-    margin-bottom: 16px; }
+    margin-bottom: 4px; }
   .scoreboard-strip b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .checked-in-strip { text-align: center; font-size: 0.74rem; color: var(--accent); font-weight: 700; margin-bottom: 16px; }
+
+  /* Check-in view */
+  .find-course-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    background: var(--card); border: 1px solid var(--line); color: var(--ink); font-weight: 800; font-size: 0.95rem;
+    padding: 16px; border-radius: 16px; cursor: pointer; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .checkin-status { text-align: center; font-size: 0.8rem; color: var(--ink-soft); margin: -6px 0 16px; min-height: 1.2em; }
+  .course-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+  .course-opt { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+    cursor: pointer; box-shadow: var(--shadow); }
+  .course-opt.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset, var(--shadow); }
+  .course-opt .co-name { font-weight: 800; font-size: 0.92rem; }
+  .course-opt .co-dist { font-size: 0.72rem; color: var(--ink-soft); margin-top: 2px; }
+  .tee-picker { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .tee-btn { flex: 1; min-width: 70px; background: var(--card); border: 2px solid var(--line); color: var(--ink);
+    font-weight: 800; font-size: 0.8rem; padding: 10px 8px; border-radius: 12px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .tee-btn .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.25); }
+  .tee-btn.active { border-color: var(--accent); background: rgba(76,175,80,0.14); }
+  .skip-link { display: block; text-align: center; color: var(--ink-soft); font-size: 0.8rem; background: none;
+    border: none; padding: 10px; width: 100%; cursor: pointer; text-decoration: underline; }
+  .checkin-help { font-size: 0.72rem; color: var(--ink-soft); text-align: center; line-height: 1.6; margin: 4px 0 18px; }
+
+  /* Mapped hole display */
+  .mapped-hole-box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+    margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+  .mapped-hole-box .mh-info .mh-par { font-weight: 800; font-size: 0.92rem; }
+  .mapped-hole-box .mh-info .mh-yards { font-size: 0.74rem; color: var(--ink-soft); margin-top: 2px; }
+  .mapped-hole-box .mh-edit { background: none; border: 1px solid var(--line); color: var(--ink-soft); font-size: 0.72rem;
+    font-weight: 700; padding: 7px 11px; border-radius: 10px; cursor: pointer; }
+
+  /* Club picker */
+  .club-picker-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-soft); margin: 0 0 8px 2px; }
+  .club-picker { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .club-picker::-webkit-scrollbar { display: none; }
+  .club-chip { flex: 0 0 auto; background: var(--card); border: 1px solid var(--line); color: var(--ink);
+    font-weight: 800; font-size: 0.78rem; padding: 9px 15px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+  .club-chip.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  /* Club stats view */
+  .stats-link-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    background: var(--card); border: 1px solid var(--line); color: var(--ink); font-weight: 800; font-size: 0.9rem;
+    padding: 14px; border-radius: 16px; cursor: pointer; box-shadow: var(--shadow); margin-bottom: 22px; }
+  table.club-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.85rem; }
+  table.club-table th { text-align: left; color: var(--ink-soft); font-size: 0.68rem; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  table.club-table td { padding: 9px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  table.club-table td.club-cell { font-weight: 800; }
+  table.club-table td.avg-cell { color: var(--accent); font-weight: 800; }
 
   /* Summary */
   .summary-total { text-align: center; background: var(--card); border: 1px solid var(--line); border-radius: 20px;
@@ -122,8 +173,31 @@
   <!-- HOME VIEW -->
   <div id="viewHome" class="view">
     <button class="big-btn" id="startRoundBtn">▶ Start New Round</button>
+    <button class="stats-link-btn" id="clubStatsBtn">📊 Club Stats</button>
     <div class="section-label">Past Rounds</div>
     <div class="round-list" id="roundList"></div>
+  </div>
+
+  <!-- CHECK-IN VIEW -->
+  <div id="viewCheckin" class="view" hidden>
+    <button class="find-course-btn" id="findCourseBtn">📍 Find My Course</button>
+    <div class="checkin-status" id="checkinStatus"></div>
+    <div class="course-list" id="courseList"></div>
+
+    <div id="teeSection" hidden>
+      <div class="section-label">Tees</div>
+      <div class="tee-picker" id="teePicker">
+        <button class="tee-btn" data-tee="White"><span class="dot" style="background:#EDEDED"></span>White</button>
+        <button class="tee-btn" data-tee="Yellow"><span class="dot" style="background:#E8D33B"></span>Yellow</button>
+        <button class="tee-btn" data-tee="Red"><span class="dot" style="background:#D64545"></span>Red</button>
+        <button class="tee-btn" data-tee="Other"><span class="dot" style="background:#7A8A79"></span>Other</button>
+      </div>
+      <button class="big-btn" id="startCheckedInBtn">Start Round</button>
+    </div>
+
+    <div class="checkin-help">Course holes are auto-filled from OpenStreetMap where mapped — yardages are map-based
+      estimates, not official tee-box distances. You can still edit any hole.</div>
+    <button class="skip-link" id="skipCheckinBtn">Skip — start a blank round instead</button>
   </div>
 
   <!-- ACTIVE ROUND VIEW -->
@@ -132,6 +206,7 @@
       <span>Round total: <b id="asRunningTotal">0</b></span>
       <span>To par: <b id="asRunningRel">E</b></span>
     </div>
+    <div class="checked-in-strip" id="checkedInStrip" hidden></div>
 
     <div class="hole-header">
       <div class="hole-num"><small>Hole</small><span id="asHoleNum">1</span></div>
@@ -142,7 +217,18 @@
       </div>
     </div>
 
+    <div class="mapped-hole-box" id="mappedHoleBox" hidden>
+      <div class="mh-info">
+        <div class="mh-par" id="mhPar">Par 4</div>
+        <div class="mh-yards" id="mhYards">~420 yd · map estimate</div>
+      </div>
+      <button class="mh-edit" id="mhEditBtn">Edit par</button>
+    </div>
+
     <div class="gps-status"><span class="gps-dot" id="gpsDot"></span><span id="gpsStatusText">Locating GPS…</span></div>
+
+    <div class="club-picker-label">Club</div>
+    <div class="club-picker" id="clubPicker"></div>
 
     <div class="shot-count-box">
       <div class="n" id="asShotCount">0</div>
@@ -178,6 +264,13 @@
     </div>
   </div>
 
+  <!-- CLUB STATS VIEW -->
+  <div id="viewClubStats" class="view" hidden>
+    <div class="section-label">Club Stats</div>
+    <div id="clubStatsBody"></div>
+    <button class="ghost-btn" id="clubStatsBackBtn" style="width:100%">Back to Rounds</button>
+  </div>
+
   <footer>
     Distances are estimated from GPS positions logged when you tap "Log Shot" — accuracy depends on your device's GPS signal.
     Everything is stored only on this device.
@@ -206,20 +299,155 @@ function haversineYards(a, b) {
   return meters * 1.09361; // yards
 }
 
+// ---- Course lookup (OpenStreetMap / Overpass) ----
+const COURSE_CACHE_KEY = "golfCourseCache";
+
+function loadCourseCache() {
+  try { return JSON.parse(localStorage.getItem(COURSE_CACHE_KEY)) || {}; } catch (e) { return {}; }
+}
+function saveCourseCache(cache) {
+  localStorage.setItem(COURSE_CACHE_KEY, JSON.stringify(cache));
+}
+
+async function overpassQuery(query) {
+  const url = "https://overpass.kumi.systems/api/interpreter?data=" + encodeURIComponent(query);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Overpass request failed");
+  return res.json();
+}
+
+async function findNearbyCourses(lat, lon) {
+  const query = `[out:json][timeout:20];
+(
+  way["leisure"="golf_course"](around:5000,${lat},${lon});
+  relation["leisure"="golf_course"](around:5000,${lat},${lon});
+);
+out center tags;`;
+  const data = await overpassQuery(query);
+  return data.elements
+    .filter(e => e.tags && e.tags.name && e.center)
+    .map(e => ({
+      id: `${e.type}/${e.id}`,
+      name: e.tags.name,
+      lat: e.center.lat,
+      lon: e.center.lon,
+      distanceYd: haversineYards({ lat, lon }, { lat: e.center.lat, lon: e.center.lon })
+    }))
+    .sort((a, b) => a.distanceYd - b.distanceYd);
+}
+
+function estimateWayYards(geometry) {
+  let yards = 0;
+  for (let i = 1; i < geometry.length; i++) {
+    yards += haversineYards(geometry[i - 1], geometry[i]) || 0;
+  }
+  return Math.round(yards);
+}
+
+async function fetchCourseHoles(course) {
+  const cache = loadCourseCache();
+  if (cache[course.id] && cache[course.id].holes) return cache[course.id].holes;
+
+  const query = `[out:json][timeout:20];
+(
+  way["golf"="hole"](around:1500,${course.lat},${course.lon});
+);
+out geom tags;`;
+  const data = await overpassQuery(query);
+  const holes = {};
+  data.elements.forEach(e => {
+    const ref = parseInt(e.tags && e.tags.ref, 10);
+    if (!ref || ref < 1 || ref > 18 || !e.geometry || e.geometry.length < 2) return;
+    if (holes[ref]) return; // keep first match if duplicates exist
+    const par = parseInt(e.tags.par, 10);
+    holes[ref] = { par: par || null, yards: estimateWayYards(e.geometry) };
+  });
+
+  cache[course.id] = { name: course.name, holes, fetchedAt: Date.now() };
+  saveCourseCache(cache);
+  return holes;
+}
+
+function parFromOwnHistory(courseId, holeNum) {
+  if (!courseId) return null;
+  const past = rounds.filter(r => r.courseId === courseId).sort((a,b) => b.date.localeCompare(a.date));
+  for (const r of past) {
+    const h = r.holes[holeNum - 1];
+    if (h) return h.par;
+  }
+  return null;
+}
+
 // ---- App state ----
 let rounds = loadRounds();
-let activeRound = null;   // { id, date, course, holes: [{par, strokes, shots:[{lat,lon,t}]}] }
+let activeRound = null;   // { id, date, course, courseId, tee, holes: [{par, strokes, shots:[{lat,lon,t}]}] }
 let holeIndex = 0;        // 0-based
 let holeShots = [];       // shots for the hole in progress
 let currentPar = 4;
 let viewingRoundId = null; // which past round is shown in summary view
+let mappedHoles = {};      // holeNum -> {par, yards} for the checked-in course, if any
+let mappedHoleOverride = false; // true once user chooses to manually edit a mapped hole's par
+let checkinCourse = null;
+let checkinTee = "White";
+
+const CLUBS = ["Driver", "3W", "5W", "Hybrid", "4i", "5i", "6i", "7i", "8i", "9i", "PW", "GW", "SW", "LW", "Putter"];
+let currentClub = "Driver";
 
 const $ = id => document.getElementById(id);
 
 function showView(name) {
   $("viewHome").hidden = name !== "home";
+  $("viewCheckin").hidden = name !== "checkin";
   $("viewActive").hidden = name !== "active";
   $("viewSummary").hidden = name !== "summary";
+  $("viewClubStats").hidden = name !== "clubStats";
+}
+
+// ---- Club picker & stats ----
+function renderClubPicker() {
+  $("clubPicker").innerHTML = CLUBS.map(c =>
+    `<button class="club-chip${c === currentClub ? " active" : ""}" data-club="${c}">${c}</button>`
+  ).join('');
+}
+
+function setCurrentClub(club) {
+  currentClub = club;
+  $("clubPicker").querySelectorAll(".club-chip").forEach(b => b.classList.toggle("active", b.dataset.club === club));
+}
+
+function computeClubStats() {
+  const allRounds = loadRounds();
+  const stats = {}; // club -> { count, total, longest }
+  allRounds.forEach(r => {
+    r.holes.forEach(h => {
+      const shots = h.shots || [];
+      for (let i = 0; i < shots.length - 1; i++) {
+        const club = shots[i].club || "Unknown";
+        const dist = haversineYards(shots[i], shots[i + 1]);
+        if (dist == null) continue;
+        if (!stats[club]) stats[club] = { count: 0, total: 0, longest: 0 };
+        stats[club].count += 1;
+        stats[club].total += dist;
+        stats[club].longest = Math.max(stats[club].longest, dist);
+      }
+    });
+  });
+  return CLUBS.concat(["Unknown"])
+    .filter(c => stats[c])
+    .map(c => ({ club: c, count: stats[c].count, avg: Math.round(stats[c].total / stats[c].count), longest: Math.round(stats[c].longest) }));
+}
+
+function renderClubStats() {
+  const rows = computeClubStats();
+  const body = $("clubStatsBody");
+  if (!rows.length) {
+    body.innerHTML = '<div class="empty-note">No club distances yet — log a couple of shots with different clubs during a round to see stats here.</div>';
+    return;
+  }
+  body.innerHTML = `<table class="club-table">
+    <thead><tr><th>Club</th><th>Shots</th><th>Avg</th><th>Longest</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><td class="club-cell">${r.club}</td><td>${r.count}</td><td class="avg-cell">${r.avg} yd</td><td>${r.longest} yd</td></tr>`).join('')}</tbody>
+  </table>`;
 }
 
 // ---- Home view ----
@@ -260,18 +488,121 @@ function relLabel(rel) {
   return rel > 0 ? `+${rel}` : `${rel}`;
 }
 
+// ---- Check-in view ----
+function openCheckin() {
+  checkinCourse = null;
+  checkinTee = "White";
+  $("courseList").innerHTML = "";
+  $("checkinStatus").textContent = "";
+  $("teeSection").hidden = true;
+  showView("checkin");
+}
+
+function findCourses() {
+  if (!navigator.geolocation) {
+    $("checkinStatus").textContent = "GPS not available on this device.";
+    return;
+  }
+  $("checkinStatus").textContent = "Finding your location…";
+  $("courseList").innerHTML = "";
+  $("teeSection").hidden = true;
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      $("checkinStatus").textContent = "Searching nearby courses…";
+      try {
+        const courses = await findNearbyCourses(pos.coords.latitude, pos.coords.longitude);
+        if (!courses.length) {
+          $("checkinStatus").textContent = "No golf courses found nearby — try Skip to enter manually.";
+          return;
+        }
+        $("checkinStatus").textContent = `Found ${courses.length} course${courses.length===1?"":"s"} nearby:`;
+        renderCourseList(courses);
+      } catch (e) {
+        $("checkinStatus").textContent = "Course search failed — check your connection, or Skip to enter manually.";
+      }
+    },
+    () => { $("checkinStatus").textContent = "Couldn't get your location — allow GPS access, or Skip to enter manually."; },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function renderCourseList(courses) {
+  const list = $("courseList");
+  list.innerHTML = courses.slice(0, 6).map(c => {
+    const distLabel = c.distanceYd < 1760 ? `${Math.round(c.distanceYd)} yd away` : `${(c.distanceYd/1760).toFixed(1)} mi away`;
+    return `<div class="course-opt" data-id="${c.id}"><div class="co-name">${c.name}</div><div class="co-dist">${distLabel}</div></div>`;
+  }).join('');
+  list.querySelectorAll(".course-opt").forEach(el => {
+    el.addEventListener("click", () => {
+      const course = courses.find(c => c.id === el.dataset.id);
+      checkinCourse = course;
+      list.querySelectorAll(".course-opt").forEach(o => o.classList.remove("selected"));
+      el.classList.add("selected");
+      $("teeSection").hidden = false;
+      setTeeButtons("White");
+    });
+  });
+}
+
+function setTeeButtons(tee) {
+  checkinTee = tee;
+  $("teePicker").querySelectorAll(".tee-btn").forEach(b => b.classList.toggle("active", b.dataset.tee === tee));
+}
+
+async function startCheckedInRound() {
+  if (!checkinCourse) return;
+  $("startCheckedInBtn").textContent = "Loading course…";
+  $("startCheckedInBtn").disabled = true;
+  let holes = {};
+  try {
+    holes = await fetchCourseHoles(checkinCourse);
+  } catch (e) {
+    holes = {};
+  }
+  $("startCheckedInBtn").textContent = "Start Round";
+  $("startCheckedInBtn").disabled = false;
+  startRound({ id: checkinCourse.id, name: checkinCourse.name, tee: checkinTee, mapped: holes });
+}
+
 // ---- Active round view ----
 let gpsWatchOk = false;
 
-function startRound() {
-  activeRound = { id: Date.now(), date: new Date().toISOString(), course: "", holes: [] };
+function startRound(courseInfo) {
+  activeRound = {
+    id: Date.now(), date: new Date().toISOString(),
+    course: courseInfo ? courseInfo.name : "",
+    courseId: courseInfo ? courseInfo.id : null,
+    tee: courseInfo ? courseInfo.tee : null,
+    holes: []
+  };
+  mappedHoles = courseInfo ? courseInfo.mapped : {};
   holeIndex = 0;
   holeShots = [];
-  currentPar = 4;
-  setParButtons(4);
+  mappedHoleOverride = false;
+  currentClub = "Driver";
+  renderClubPicker();
+  applyHoleParDefault();
+  if (courseInfo) {
+    $("checkedInStrip").hidden = false;
+    $("checkedInStrip").textContent = `📍 ${courseInfo.name} · ${courseInfo.tee} tees`;
+  } else {
+    $("checkedInStrip").hidden = true;
+  }
   renderActive();
   showView("active");
   primeGps();
+}
+
+function applyHoleParDefault() {
+  const holeNum = holeIndex + 1;
+  const mapped = mappedHoles[holeNum];
+  if (mapped && mapped.par) {
+    currentPar = mapped.par;
+  } else {
+    const historyPar = parFromOwnHistory(activeRound.courseId, holeNum);
+    currentPar = historyPar || 4;
+  }
+  setParButtons(currentPar);
 }
 
 function primeGps() {
@@ -304,15 +635,28 @@ function renderActive() {
   $("asRunningTotal").textContent = totalsSoFar.strokes;
   const rel = totalsSoFar.strokes - (activeRound.holes.reduce((s,h)=>s+h.par,0) + (holeShots.length ? currentPar : 0));
   $("asRunningRel").textContent = relLabel(activeRound.holes.reduce((s,h)=>s+h.strokes,0) - activeRound.holes.reduce((s,h)=>s+h.par,0));
+  renderMappedHoleBox();
+}
+
+function renderMappedHoleBox() {
+  const holeNum = holeIndex + 1;
+  const mapped = mappedHoles[holeNum];
+  const showMapped = !!mapped && !mappedHoleOverride;
+  $("mappedHoleBox").hidden = !showMapped;
+  $("parPicker").style.display = showMapped ? "none" : "flex";
+  if (showMapped) {
+    $("mhPar").textContent = mapped.par ? `Par ${mapped.par}` : `Par ${currentPar}`;
+    $("mhYards").textContent = mapped.yards ? `~${mapped.yards} yd · map estimate` : "Map estimate unavailable";
+  }
 }
 
 function logShot() {
-  const entry = { lat: null, lon: null, t: Date.now() };
+  const entry = { lat: null, lon: null, t: Date.now(), club: currentClub };
   const afterCapture = () => {
     if (holeShots.length > 0) {
       const prev = holeShots[holeShots.length - 1];
       const yd = haversineYards(prev, entry);
-      $("asLastDist").textContent = (yd != null) ? `Previous shot: ~${Math.round(yd)} yd` : "";
+      $("asLastDist").textContent = (yd != null) ? `${prev.club || "Previous shot"}: ~${Math.round(yd)} yd` : "";
     }
     holeShots.push(entry);
     renderActive();
@@ -346,7 +690,10 @@ function finishHole() {
   finishCurrentHoleInto(activeRound);
   holeIndex += 1;
   holeShots = [];
-  setParButtons(4);
+  mappedHoleOverride = false;
+  currentClub = "Driver";
+  renderClubPicker();
+  applyHoleParDefault();
   $("asLastDist").textContent = "";
   if (holeIndex >= 18) {
     endRound();
@@ -389,10 +736,24 @@ function renderSummary(round) {
 }
 
 // ---- Wiring ----
-$("startRoundBtn").addEventListener("click", startRound);
+$("startRoundBtn").addEventListener("click", openCheckin);
+$("findCourseBtn").addEventListener("click", findCourses);
+$("teePicker").addEventListener("click", (e) => {
+  const btn = e.target.closest(".tee-btn");
+  if (btn) setTeeButtons(btn.dataset.tee);
+});
+$("startCheckedInBtn").addEventListener("click", startCheckedInRound);
+$("skipCheckinBtn").addEventListener("click", () => startRound(null));
+$("clubStatsBtn").addEventListener("click", () => { renderClubStats(); showView("clubStats"); });
+$("clubStatsBackBtn").addEventListener("click", () => showView("home"));
 $("parPicker").addEventListener("click", (e) => {
   const btn = e.target.closest(".par-btn");
   if (btn) setParButtons(Number(btn.dataset.par));
+});
+$("mhEditBtn").addEventListener("click", () => { mappedHoleOverride = true; renderMappedHoleBox(); });
+$("clubPicker").addEventListener("click", (e) => {
+  const btn = e.target.closest(".club-chip");
+  if (btn) setCurrentClub(btn.dataset.club);
 });
 $("logShotBtn").addEventListener("click", logShot);
 $("undoShotBtn").addEventListener("click", undoShot);
@@ -417,6 +778,10 @@ $("backHomeBtn").addEventListener("click", () => { showView("home"); renderHome(
 
 renderHome();
 showView("home");
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
 </script>
 </body>
 </html>
