@@ -159,6 +159,22 @@
     padding: 11px 14px; color: var(--ink); font-size: 0.92rem; margin-bottom: 18px; }
 
   footer { text-align: center; color: var(--ink-soft); font-size: 0.72rem; margin-top: 30px; line-height: 1.7; }
+
+  .welcome-overlay { position: fixed; inset: 0; background: rgba(6,10,7,0.82); display: flex; align-items: center;
+    justify-content: center; padding: 20px; z-index: 95; }
+  .welcome-overlay[hidden] { display: none; }
+  .welcome-box { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 26px 24px;
+    max-width: 380px; width: 100%; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow); }
+  .welcome-box .w-title { font-size: 1.4rem; font-weight: 900; text-align: center; margin-bottom: 4px; }
+  .welcome-box .w-sub { font-size: 0.85rem; color: var(--ink-soft); text-align: center; margin-bottom: 20px; }
+  .w-steps { display: flex; flex-direction: column; gap: 14px; margin-bottom: 22px; }
+  .w-step { display: flex; gap: 12px; align-items: flex-start; }
+  .w-step .w-icon { font-size: 1.4rem; flex-shrink: 0; width: 34px; height: 34px; background: var(--card);
+    border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .w-step .w-text { font-size: 0.9rem; line-height: 1.4; padding-top: 4px; }
+  .w-step .w-text b { display: block; font-size: 0.94rem; margin-bottom: 1px; }
+  .welcome-box button { width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 14px;
+    padding: 15px; font-size: 1rem; font-weight: 800; cursor: pointer; font-family: inherit; }
 </style>
 </head>
 <body>
@@ -275,6 +291,21 @@
     Distances are estimated from GPS positions logged when you tap "Log Shot" — accuracy depends on your device's GPS signal.
     Everything is stored only on this device.
   </footer>
+</div>
+
+<div class="welcome-overlay" id="welcomeOverlay">
+  <div class="welcome-box">
+    <div class="w-title">⛳ Welcome!</div>
+    <div class="w-sub">Here's how it works</div>
+    <div class="w-steps">
+      <div class="w-step"><span class="w-icon">▶</span><div class="w-text"><b>Start a round</b>Tap "Start New Round". You can find your course by GPS, or skip straight in.</div></div>
+      <div class="w-step"><span class="w-icon">🏌️</span><div class="w-text"><b>Pick your club</b>Before you hit, tap the club you're using in the row above the button.</div></div>
+      <div class="w-step"><span class="w-icon">📍</span><div class="w-text"><b>Log Shot</b>Tap it every time you're about to hit. It saves your GPS spot and tracks distance.</div></div>
+      <div class="w-step"><span class="w-icon">✓</span><div class="w-text"><b>Finish Hole</b>Once the hole is done, tap "Finish Hole" and it moves you on to the next one.</div></div>
+      <div class="w-step"><span class="w-icon">📊</span><div class="w-text"><b>Club Stats</b>Check your average distance per club any time from the home screen.</div></div>
+    </div>
+    <button id="welcomeCloseBtn">Let's Play</button>
+  </div>
 </div>
 
 <script>
@@ -775,6 +806,7 @@ $("deleteRoundBtn").addEventListener("click", () => {
   renderHome();
 });
 $("backHomeBtn").addEventListener("click", () => { showView("home"); renderHome(); });
+$("welcomeCloseBtn").addEventListener("click", () => { $("welcomeOverlay").hidden = true; });
 
 renderHome();
 showView("home");
