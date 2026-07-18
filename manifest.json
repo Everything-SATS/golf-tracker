@@ -1,7 +1,9 @@
 {
+  "id": "/golf-tracker/",
   "name": "Golf Shot Tracker",
   "short_name": "Golf Shots",
-  "start_url": "./index.html",
+  "start_url": "/golf-tracker/index.html",
+  "scope": "/golf-tracker/",
   "display": "standalone",
   "background_color": "#0E1A12",
   "theme_color": "#0E1A12",
