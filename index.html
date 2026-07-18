@@ -110,13 +110,13 @@
     border: none; padding: 10px; width: 100%; cursor: pointer; text-decoration: underline; }
   .checkin-help { font-size: 0.72rem; color: var(--ink-soft); text-align: center; line-height: 1.6; margin: 4px 0 18px; }
 
-  /* Mapped hole display */
-  .mapped-hole-box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
-    margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
-  .mapped-hole-box .mh-info .mh-par { font-weight: 800; font-size: 0.92rem; }
-  .mapped-hole-box .mh-info .mh-yards { font-size: 0.74rem; color: var(--ink-soft); margin-top: 2px; }
-  .mapped-hole-box .mh-edit { background: none; border: 1px solid var(--line); color: var(--ink-soft); font-size: 0.72rem;
-    font-weight: 700; padding: 7px 11px; border-radius: 10px; cursor: pointer; }
+  /* Yardage entry - always editable, in both mapped and blank rounds */
+  .yard-row { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px;
+    margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+  .yard-row .yard-label { font-weight: 800; font-size: 0.85rem; }
+  .yard-row input#yardInput { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line);
+    color: var(--ink); font-weight: 800; font-size: 0.92rem; padding: 8px 10px; border-radius: 10px; font-family: inherit; }
+  .yard-row .yard-hint { font-size: 0.68rem; color: var(--ink-soft); flex-basis: 100%; margin-top: 2px; }
 
   /* Club picker */
   .club-picker-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
@@ -233,12 +233,10 @@
       </div>
     </div>
 
-    <div class="mapped-hole-box" id="mappedHoleBox" hidden>
-      <div class="mh-info">
-        <div class="mh-par" id="mhPar">Par 4</div>
-        <div class="mh-yards" id="mhYards">~420 yd · map estimate</div>
-      </div>
-      <button class="mh-edit" id="mhEditBtn">Edit par</button>
+    <div class="yard-row" id="yardRow">
+      <span class="yard-label">Yards</span>
+      <input type="number" id="yardInput" inputmode="numeric" min="1" max="700" placeholder="e.g. 380">
+      <span class="yard-hint" id="yardHint"></span>
     </div>
 
     <div class="gps-status"><span class="gps-dot" id="gpsDot"></span><span id="gpsStatusText">Locating GPS…</span></div>
@@ -415,9 +413,9 @@ let activeRound = null;   // { id, date, course, courseId, tee, holes: [{par, st
 let holeIndex = 0;        // 0-based
 let holeShots = [];       // shots for the hole in progress
 let currentPar = 4;
+let currentYards = null;
 let viewingRoundId = null; // which past round is shown in summary view
 let mappedHoles = {};      // holeNum -> {par, yards} for the checked-in course, if any
-let mappedHoleOverride = false; // true once user chooses to manually edit a mapped hole's par
 let checkinCourse = null;
 let checkinTee = "White";
 
@@ -609,7 +607,6 @@ function startRound(courseInfo) {
   mappedHoles = courseInfo ? courseInfo.mapped : {};
   holeIndex = 0;
   holeShots = [];
-  mappedHoleOverride = false;
   currentClub = "Driver";
   renderClubPicker();
   applyHoleParDefault();
@@ -633,7 +630,9 @@ function applyHoleParDefault() {
     const historyPar = parFromOwnHistory(activeRound.courseId, holeNum);
     currentPar = historyPar || 4;
   }
+  currentYards = (mapped && mapped.yards) ? mapped.yards : null;
   setParButtons(currentPar);
+  renderYardRow();
 }
 
 function primeGps() {
@@ -666,19 +665,14 @@ function renderActive() {
   $("asRunningTotal").textContent = totalsSoFar.strokes;
   const rel = totalsSoFar.strokes - (activeRound.holes.reduce((s,h)=>s+h.par,0) + (holeShots.length ? currentPar : 0));
   $("asRunningRel").textContent = relLabel(activeRound.holes.reduce((s,h)=>s+h.strokes,0) - activeRound.holes.reduce((s,h)=>s+h.par,0));
-  renderMappedHoleBox();
 }
 
-function renderMappedHoleBox() {
+function renderYardRow() {
   const holeNum = holeIndex + 1;
   const mapped = mappedHoles[holeNum];
-  const showMapped = !!mapped && !mappedHoleOverride;
-  $("mappedHoleBox").hidden = !showMapped;
-  $("parPicker").style.display = showMapped ? "none" : "flex";
-  if (showMapped) {
-    $("mhPar").textContent = mapped.par ? `Par ${mapped.par}` : `Par ${currentPar}`;
-    $("mhYards").textContent = mapped.yards ? `~${mapped.yards} yd · map estimate` : "Map estimate unavailable";
-  }
+  $("yardInput").value = currentYards != null ? currentYards : "";
+  $("yardHint").textContent = (mapped && mapped.yards && currentYards === mapped.yards)
+    ? "map estimate — edit if you know the real yardage" : "";
 }
 
 function logShot() {
@@ -711,7 +705,7 @@ function undoShot() {
 }
 
 function finishCurrentHoleInto(round) {
-  round.holes.push({ par: currentPar, strokes: Math.max(holeShots.length, 0), shots: holeShots });
+  round.holes.push({ par: currentPar, yards: currentYards, strokes: Math.max(holeShots.length, 0), shots: holeShots });
 }
 
 function finishHole() {
@@ -721,7 +715,6 @@ function finishHole() {
   finishCurrentHoleInto(activeRound);
   holeIndex += 1;
   holeShots = [];
-  mappedHoleOverride = false;
   currentClub = "Driver";
   renderClubPicker();
   applyHoleParDefault();
@@ -781,7 +774,11 @@ $("parPicker").addEventListener("click", (e) => {
   const btn = e.target.closest(".par-btn");
   if (btn) setParButtons(Number(btn.dataset.par));
 });
-$("mhEditBtn").addEventListener("click", () => { mappedHoleOverride = true; renderMappedHoleBox(); });
+$("yardInput").addEventListener("input", (e) => {
+  const v = e.target.value;
+  currentYards = v === "" ? null : Number(v);
+  $("yardHint").textContent = "";
+});
 $("clubPicker").addEventListener("click", (e) => {
   const btn = e.target.closest(".club-chip");
   if (btn) setCurrentClub(btn.dataset.club);
