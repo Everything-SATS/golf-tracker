@@ -133,6 +133,12 @@
   #holeNoteInput { width: 100%; margin-top: 8px; background: var(--card); border: 1px solid var(--line); color: var(--ink);
     font-size: 0.85rem; padding: 10px 12px; border-radius: 12px; font-family: inherit; min-height: 64px; resize: vertical; }
 
+  .hole-map-row { margin-bottom: 16px; }
+  #holeMapWrap { margin-top: 10px; }
+  #holeMapWrap .map-empty { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px; text-align: center; font-size: 0.8rem; color: var(--ink-soft); }
+  #holeMapWrap .map-credit { font-size: 0.62rem; color: var(--ink-soft); text-align: center; margin-top: 4px; }
+
   /* Club picker */
   .club-picker-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
     color: var(--ink-soft); margin: 0 0 8px 2px; }
@@ -265,6 +271,11 @@
       <span class="yard-label">Yards</span>
       <input type="number" id="yardInput" inputmode="numeric" min="1" max="700" placeholder="e.g. 380">
       <span class="yard-hint" id="yardHint"></span>
+    </div>
+
+    <div class="hole-map-row" id="holeMapRow" hidden>
+      <button class="note-toggle" id="mapToggleBtn">🗺️ Hole Map</button>
+      <div id="holeMapWrap" hidden></div>
     </div>
 
     <div class="hole-note-row" id="holeNoteRow" hidden>
@@ -468,6 +479,141 @@ out geom tags;`;
   return holes;
 }
 
+// ---- Hole map: real fairway/green/bunker/water/tee geometry from OpenStreetMap, per hole. ----
+async function fetchCourseFeatures(course) {
+  const cache = loadCourseCache();
+  if (cache[course.id] && cache[course.id].features) return cache[course.id].features;
+
+  const query = `[out:json][timeout:25];
+(
+  way["golf"="hole"](around:1500,${course.lat},${course.lon});
+  way["golf"="fairway"](around:1500,${course.lat},${course.lon});
+  way["golf"="green"](around:1500,${course.lat},${course.lon});
+  way["golf"="bunker"](around:1500,${course.lat},${course.lon});
+  way["golf"="tee"](around:1500,${course.lat},${course.lon});
+  way["water"](around:1500,${course.lat},${course.lon});
+  way["natural"="water"](around:1500,${course.lat},${course.lon});
+  way["golf"="water_hazard"](around:1500,${course.lat},${course.lon});
+);
+out geom tags;`;
+  let data;
+  try { data = await overpassQuery(query); } catch (e) { return {}; }
+
+  const lines = {}; // holeNum -> centerline points
+  const shapes = []; // { holeRef, kind, points }
+  data.elements.forEach(e => {
+    if (!e.geometry || e.geometry.length < 2) return;
+    const pts = e.geometry.map(p => ({ lat: p.lat, lon: p.lon }));
+    const ref = parseInt(e.tags && e.tags.ref, 10) || null;
+    if (e.tags && e.tags.golf === "hole") {
+      if (ref) lines[ref] = pts;
+      return;
+    }
+    let kind = null;
+    if (e.tags && e.tags.golf === "fairway") kind = "fairway";
+    else if (e.tags && e.tags.golf === "green") kind = "green";
+    else if (e.tags && e.tags.golf === "bunker") kind = "bunker";
+    else if (e.tags && e.tags.golf === "tee") kind = "tee";
+    else if ((e.tags && e.tags.water) || (e.tags && e.tags.natural === "water") || (e.tags && e.tags.golf === "water_hazard")) kind = "water";
+    if (kind) shapes.push({ ref, kind, points: pts });
+  });
+
+  // Features without a ref tag get matched to the nearest hole centerline (within ~200 yards).
+  const holeNums = Object.keys(lines).map(Number);
+  function nearestHole(points) {
+    const c = points[Math.floor(points.length / 2)];
+    let best = null, bestDist = Infinity;
+    holeNums.forEach(hn => {
+      const line = lines[hn];
+      const p = line[Math.floor(line.length / 2)];
+      const d = haversineYards(c, p);
+      if (d < bestDist) { bestDist = d; best = hn; }
+    });
+    return bestDist <= 200 ? best : null;
+  }
+
+  const holeFeatures = {};
+  holeNums.forEach(hn => { holeFeatures[hn] = { line: lines[hn], fairway: [], green: [], bunker: [], water: [], tee: [] }; });
+  shapes.forEach(s => {
+    const hn = s.ref && lines[s.ref] ? s.ref : nearestHole(s.points);
+    if (!hn) return;
+    if (!holeFeatures[hn]) holeFeatures[hn] = { line: lines[hn] || null, fairway: [], green: [], bunker: [], water: [], tee: [] };
+    holeFeatures[hn][s.kind].push(s.points);
+  });
+
+  const features = { holeFeatures };
+  cache[course.id] = cache[course.id] || { name: course.name, fetchedAt: Date.now() };
+  cache[course.id].features = features;
+  saveCourseCache(cache);
+  return features;
+}
+
+function projectHolePoints(holeData) {
+  const all = [];
+  if (holeData.line) all.push(...holeData.line);
+  ["fairway", "green", "bunker", "water", "tee"].forEach(k => holeData[k].forEach(pts => all.push(...pts)));
+  if (!all.length) return null;
+
+  const lats = all.map(p => p.lat), lons = all.map(p => p.lon);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+  const midLat = (minLat + maxLat) / 2;
+  const cos = Math.cos(midLat * Math.PI / 180);
+
+  const padFrac = 0.12;
+  const spanLat = (maxLat - minLat) || 0.0005;
+  const spanLon = ((maxLon - minLon) * cos) || 0.0005;
+  const size = 320;
+  const scale = (size * (1 - padFrac * 2)) / Math.max(spanLat, spanLon);
+  const offX = (size - spanLon * scale) / 2;
+  const offY = (size - spanLat * scale) / 2;
+
+  function proj(p) {
+    const x = offX + (p.lon - minLon) * cos * scale;
+    const y = size - (offY + (p.lat - minLat) * scale); // flip so north is up
+    return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+  }
+  return { proj, size };
+}
+
+function renderHoleMap(holeNum) {
+  const wrap = $("holeMapWrap");
+  const courseId = activeRound.courseId;
+  if (!courseId || courseId.startsWith("manual:") || !holeMapFeatures) {
+    wrap.innerHTML = `<div class="map-empty">No map data for this round — the hole map needs a course checked in from GPS search.</div>`;
+    return;
+  }
+  const hf = holeMapFeatures.holeFeatures && holeMapFeatures.holeFeatures[holeNum];
+  if (!hf || (!hf.line && !hf.fairway.length && !hf.green.length)) {
+    wrap.innerHTML = `<div class="map-empty">No OpenStreetMap layout data mapped for hole ${holeNum} yet.</div>`;
+    return;
+  }
+  const projection = projectHolePoints(hf);
+  if (!projection) {
+    wrap.innerHTML = `<div class="map-empty">No OpenStreetMap layout data mapped for hole ${holeNum} yet.</div>`;
+    return;
+  }
+  const { proj, size } = projection;
+  const poly = pts => pts.map(proj).map(p => p.join(",")).join(" ");
+
+  let svg = `<svg viewBox="0 0 ${size} ${size}" width="100%" style="max-width:340px;display:block;margin:0 auto;background:#dff0d8;border-radius:14px;">`;
+  hf.fairway.forEach(pts => { svg += `<polygon points="${poly(pts)}" fill="#8fc97a" stroke="#6fa85c" stroke-width="1"/>`; });
+  hf.water.forEach(pts => { svg += `<polygon points="${poly(pts)}" fill="#7ec8e3" stroke="#4fa3c4" stroke-width="1"/>`; });
+  hf.bunker.forEach(pts => { svg += `<polygon points="${poly(pts)}" fill="#f0e2b6" stroke="#d8c584" stroke-width="1"/>`; });
+  hf.green.forEach(pts => { svg += `<polygon points="${poly(pts)}" fill="#5fae4a" stroke="#478138" stroke-width="1"/>`; });
+  hf.tee.forEach(pts => { svg += `<polygon points="${poly(pts)}" fill="#3f7a34" stroke="#2f5c27" stroke-width="1"/>`; });
+  if (hf.line && hf.line.length >= 2) {
+    const linePoints = hf.line.map(proj).map(p => p.join(",")).join(" ");
+    svg += `<polyline points="${linePoints}" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6,5" opacity="0.85"/>`;
+    const [tx, ty] = proj(hf.line[0]);
+    const [gx, gy] = proj(hf.line[hf.line.length - 1]);
+    svg += `<circle cx="${tx}" cy="${ty}" r="4" fill="#ffffff" stroke="#2f5c27" stroke-width="1.5"/>`;
+    svg += `<text x="${gx}" y="${gy - 6}" font-size="18" text-anchor="middle">⛳</text>`;
+  }
+  svg += `</svg>`;
+  wrap.innerHTML = svg + `<div class="map-credit">Map data © OpenStreetMap contributors</div>`;
+}
+
 function parFromOwnHistory(courseId, holeNum) {
   if (!courseId) return null;
   const past = rounds.filter(r => r.courseId === courseId).sort((a,b) => b.date.localeCompare(a.date));
@@ -493,7 +639,7 @@ function myPlayedCourses() {
   const byId = {};
   rounds.filter(r => r.courseId).forEach(r => {
     if (!byId[r.courseId] || r.date > byId[r.courseId].date) {
-      byId[r.courseId] = { id: r.courseId, name: r.course, tee: r.tee, date: r.date };
+      byId[r.courseId] = { id: r.courseId, name: r.course, tee: r.tee, date: r.date, lat: r.courseLat, lon: r.courseLon };
     }
   });
   return Object.values(byId).sort((a,b) => b.date.localeCompare(a.date));
@@ -545,6 +691,7 @@ let currentPar = 4;
 let currentYards = null;
 let viewingRoundId = null; // which past round is shown in summary view
 let mappedHoles = {};      // holeNum -> {par, yards} for the checked-in course, if any
+let holeMapFeatures = null; // OSM fairway/green/bunker/water/tee geometry for the checked-in course, if any
 let checkinCourse = null;
 let checkinTee = "White";
 
@@ -674,7 +821,7 @@ function renderMyCourses() {
   $("myCourseList").querySelectorAll(".course-opt").forEach(el => {
     el.addEventListener("click", () => {
       const c = mine.find(x => x.id === el.dataset.id);
-      startRound({ id: c.id, name: c.name, tee: c.tee || "White", mapped: {} });
+      startRound({ id: c.id, name: c.name, tee: c.tee || "White", mapped: {}, lat: c.lat, lon: c.lon });
     });
   });
 }
@@ -742,7 +889,7 @@ async function startCheckedInRound() {
   }
   $("startCheckedInBtn").textContent = "Start Round";
   $("startCheckedInBtn").disabled = false;
-  startRound({ id: checkinCourse.id, name: checkinCourse.name, tee: checkinTee, mapped: holes });
+  startRound({ id: checkinCourse.id, name: checkinCourse.name, tee: checkinTee, mapped: holes, lat: checkinCourse.lat, lon: checkinCourse.lon });
 }
 
 // ---- Active round view ----
@@ -754,9 +901,12 @@ function startRound(courseInfo) {
     course: courseInfo ? courseInfo.name : "",
     courseId: courseInfo ? courseInfo.id : null,
     tee: courseInfo ? courseInfo.tee : null,
+    courseLat: courseInfo ? courseInfo.lat : null,
+    courseLon: courseInfo ? courseInfo.lon : null,
     holes: []
   };
   mappedHoles = courseInfo ? courseInfo.mapped : {};
+  holeMapFeatures = null;
   holeIndex = 0;
   holeShots = [];
   currentClub = "Driver";
@@ -772,6 +922,20 @@ function startRound(courseInfo) {
   showView("active");
   primeGps();
   saveActiveRoundState();
+  loadHoleMapForActiveRound();
+}
+
+function loadHoleMapForActiveRound() {
+  const id = activeRound && activeRound.courseId;
+  $("holeMapRow").hidden = !id || id.startsWith("manual:");
+  if (!id || id.startsWith("manual:") || !activeRound.courseLat) return;
+  fetchCourseFeatures({ id, lat: activeRound.courseLat, lon: activeRound.courseLon, name: activeRound.course })
+    .then(features => {
+      if (!activeRound || activeRound.courseId !== id) return; // round changed while fetching
+      holeMapFeatures = features;
+      renderHoleMap(holeIndex + 1);
+    })
+    .catch(() => {});
 }
 
 function applyHoleParDefault() {
@@ -790,6 +954,7 @@ function applyHoleParDefault() {
   setParButtons(currentPar);
   renderYardRow();
   renderHoleNote();
+  if (holeMapFeatures) renderHoleMap(holeNum);
 }
 
 function primeGps() {
@@ -961,6 +1126,11 @@ $("noteToggleBtn").addEventListener("click", () => {
   input.hidden = !input.hidden;
   if (!input.hidden) input.focus();
 });
+$("mapToggleBtn").addEventListener("click", () => {
+  const wrap = $("holeMapWrap");
+  wrap.hidden = !wrap.hidden;
+  if (!wrap.hidden) renderHoleMap(holeIndex + 1);
+});
 $("holeNoteInput").addEventListener("blur", (e) => {
   setHoleNote(activeRound.courseId, holeIndex + 1, e.target.value.trim());
   renderHoleNote();
@@ -1036,6 +1206,8 @@ function applyResumedRound(saved) {
   renderActive();
   showView("active");
   primeGps();
+  holeMapFeatures = null;
+  loadHoleMapForActiveRound();
 }
 
 $("resumeContinueBtn").addEventListener("click", () => {
