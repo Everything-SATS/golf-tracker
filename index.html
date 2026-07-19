@@ -81,7 +81,6 @@
     font-size: 0.85rem; padding: 13px 8px; border-radius: 14px; cursor: pointer; }
   .aim-assist-btn { width: 100%; background: var(--accent); border: none; color: var(--accent-ink); font-weight: 800;
     font-size: 0.95rem; padding: 13px; border-radius: 14px; margin-bottom: 14px; cursor: pointer; }
-  .greens-btn { background: transparent; border: 2px solid var(--accent); color: var(--accent); }
   .finish-hole-btn { width: 100%; background: transparent; border: 2px solid var(--accent); color: var(--accent);
     font-weight: 900; font-size: 1rem; padding: 14px; border-radius: 16px; cursor: pointer; margin-bottom: 10px; }
   .end-round-link { display: block; text-align: center; color: var(--ink-soft); font-size: 0.78rem; background: none;
@@ -165,33 +164,6 @@
   .ar-club { color: var(--accent); font-size: 0.95rem; font-weight: 800; margin-top: 2px; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
   .ar-close-btn { position: absolute; top: 12px; right: 12px; z-index: 3; background: rgba(0,0,0,0.5); color: #fff;
     border: 1px solid rgba(255,255,255,0.3); border-radius: 20px; padding: 8px 14px; font-size: 0.78rem; font-weight: 700; }
-
-  /* ---- Greens Reader: real accelerometer tilt, no guessed slope data ---- */
-  .greens-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 60; display: flex; flex-direction: column;
-    align-items: center; padding: 60px 20px 24px; overflow-y: auto; }
-  .greens-overlay[hidden] { display: none; }
-  .greens-title { font-size: 1.1rem; font-weight: 900; color: var(--ink); margin-bottom: 6px; }
-  .greens-warning { font-size: 0.75rem; font-weight: 700; color: var(--danger); text-align: center; max-width: 300px;
-    background: rgba(224,87,74,0.12); border: 1px solid rgba(224,87,74,0.35); border-radius: 12px;
-    padding: 9px 12px; margin-bottom: 14px; }
-  .greens-hint { font-size: 0.78rem; color: var(--ink-soft); text-align: center; max-width: 300px; margin-bottom: 22px; }
-  .greens-dial { position: relative; width: 220px; height: 220px; border-radius: 50%; background: var(--card);
-    border: 3px solid var(--line); flex-shrink: 0; }
-  .greens-dial::after { content: ""; position: absolute; top: 50%; left: 50%; width: 8px; height: 8px;
-    margin: -4px 0 0 -4px; border-radius: 50%; background: var(--line); }
-  .greens-dial-label { position: absolute; font-size: 0.72rem; font-weight: 800; color: var(--ink-soft); }
-  .greens-dial-top { top: 8px; left: 50%; transform: translateX(-50%); }
-  .greens-dial-dot { position: absolute; top: 50%; left: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
-    border-radius: 50%; background: var(--accent); box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-    transition: transform 0.12s linear; }
-  .greens-reading { margin-top: 20px; font-size: 1.15rem; font-weight: 800; color: var(--ink); text-align: center;
-    min-height: 30px; }
-  .greens-log-btn { position: static; background: var(--accent); color: var(--accent-ink); border: none;
-    margin-top: 18px; padding: 12px 22px; border-radius: 14px; }
-  .greens-points { width: 100%; max-width: 320px; margin-top: 18px; }
-  .greens-point-row { display: flex; justify-content: space-between; background: var(--card); border: 1px solid var(--line);
-    border-radius: 10px; padding: 9px 12px; font-size: 0.8rem; color: var(--ink); margin-bottom: 6px; }
-  .greens-point-row .gp-label { color: var(--ink-soft); font-weight: 700; }
 
   /* Club picker */
   .club-picker-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
@@ -340,7 +312,6 @@
     <div class="gps-status"><span class="gps-dot" id="gpsDot"></span><span id="gpsStatusText">Locating GPS…</span></div>
 
     <button class="aim-assist-btn" id="aimAssistBtn">🎯 Aim Assist</button>
-    <button class="aim-assist-btn greens-btn" id="greensReaderBtn">📐 Greens Reader</button>
 
     <div class="club-picker-label">Club</div>
     <div class="club-picker" id="clubPicker"></div>
@@ -441,20 +412,6 @@
     <div class="ar-club" id="arClub"></div>
   </div>
   <button class="ar-close-btn" id="arCloseBtn">✕ Close</button>
-</div>
-
-<div class="greens-overlay" id="greensOverlay" hidden>
-  <button class="ar-close-btn" id="greensCloseBtn">✕ Close</button>
-  <div class="greens-title">📐 Greens Reader</div>
-  <div class="greens-warning">⚠️ Practice use only — measuring slope with a device breaks Rule 4.3 (Rules of Golf) and is not allowed during a competition round.</div>
-  <div class="greens-hint">Lay your phone flat on the green, top edge pointing from ball toward the hole.</div>
-  <div class="greens-dial" id="greensDial">
-    <div class="greens-dial-label greens-dial-top">Hole →</div>
-    <div class="greens-dial-dot" id="greensDialDot"></div>
-  </div>
-  <div class="greens-reading" id="greensReading">Waiting for tilt sensor…</div>
-  <button class="ar-close-btn greens-log-btn" id="greensLogBtn">📍 Log This Point</button>
-  <div class="greens-points" id="greensPoints"></div>
 </div>
 
 <script>
@@ -834,91 +791,6 @@ function closeAimAssist() {
   }
   arHeading = null;
   arCurrentPos = null;
-}
-
-// ---- Greens Reader: reads the real physical tilt of the ground via the phone's accelerometer when
-// laid flat on the green. This is genuine sensor data, not a guessed/estimated slope - there's no
-// reliable way to infer real green-break from a photo, so we measure it directly instead.
-// Points are session-only (not saved) since a green's exact slope reading is only meaningful in the
-// moment you take it - surfacing a stale reading later would be misleading. ----
-let greensActive = false;
-let greensOrientationHandler = null;
-let greensLastReading = null; // { beta, gamma, magnitude, angle }
-let greensPoints = [];
-
-function greensDirectionLabel(angle) {
-  // angle: 0 = downhill toward hole (forward), 90 = right, -90 = left, ±180 = downhill back toward you.
-  const a = angle;
-  if (Math.abs(a) < 22.5) return "Breaks toward the hole";
-  if (a >= 22.5 && a < 67.5) return "Breaks forward-right";
-  if (a >= 67.5 && a < 112.5) return "Breaks right";
-  if (a >= 112.5 && a < 157.5) return "Breaks back-right (uphill)";
-  if (a <= -22.5 && a > -67.5) return "Breaks forward-left";
-  if (a <= -67.5 && a > -112.5) return "Breaks left";
-  if (a <= -112.5 && a > -157.5) return "Breaks back-left (uphill)";
-  return "Breaks back toward you (uphill)";
-}
-
-function handleGreensOrientation(e) {
-  if (e.beta == null || e.gamma == null) return;
-  const beta = e.beta, gamma = e.gamma;
-  const magnitude = Math.sqrt(beta * beta + gamma * gamma);
-  const angle = Math.atan2(gamma, beta) * 180 / Math.PI;
-  greensLastReading = { beta, gamma, magnitude, angle };
-
-  const MAX_TILT_FOR_FULL_RADIUS = 12; // degrees - past this the dot pins to the dial's edge
-  const dial = $("greensDial");
-  const radius = (dial.clientWidth / 2 - 16) * Math.min(magnitude / MAX_TILT_FOR_FULL_RADIUS, 1);
-  const rad = angle * Math.PI / 180;
-  const dx = Math.sin(rad) * radius;
-  const dy = -Math.cos(rad) * radius;
-  $("greensDialDot").style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
-
-  $("greensReading").textContent = `${greensDirectionLabel(angle)} · ${magnitude.toFixed(1)}°`;
-}
-
-async function openGreensReader() {
-  greensActive = true;
-  greensPoints = [];
-  greensLastReading = null;
-  $("greensPoints").innerHTML = "";
-  $("greensReading").textContent = "Waiting for tilt sensor…";
-  $("greensDialDot").style.transform = "translate(0px, 0px)";
-  $("greensOverlay").hidden = false;
-
-  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
-    try {
-      const res = await DeviceOrientationEvent.requestPermission();
-      if (res !== "granted") { $("greensReading").textContent = "Motion sensor permission denied"; return; }
-    } catch (e) {}
-  }
-  if (typeof DeviceOrientationEvent === "undefined") {
-    $("greensReading").textContent = "Tilt sensor not available on this device";
-    return;
-  }
-  greensOrientationHandler = handleGreensOrientation;
-  window.addEventListener("deviceorientation", greensOrientationHandler, true);
-}
-
-function logGreensPoint() {
-  if (!greensLastReading) return;
-  const n = greensPoints.length + 1;
-  greensPoints.push({ n, ...greensLastReading });
-  const row = document.createElement("div");
-  row.className = "greens-point-row";
-  row.innerHTML = `<span class="gp-label">Point ${n}</span><span>${greensDirectionLabel(greensLastReading.angle)} · ${greensLastReading.magnitude.toFixed(1)}°</span>`;
-  $("greensPoints").appendChild(row);
-}
-
-function closeGreensReader() {
-  greensActive = false;
-  $("greensOverlay").hidden = true;
-  if (greensOrientationHandler) {
-    window.removeEventListener("deviceorientation", greensOrientationHandler, true);
-    greensOrientationHandler = null;
-  }
-  greensLastReading = null;
-  greensPoints = [];
 }
 
 function parFromOwnHistory(courseId, holeNum) {
@@ -1441,9 +1313,6 @@ $("mapToggleBtn").addEventListener("click", () => {
 });
 $("aimAssistBtn").addEventListener("click", openAimAssist);
 $("arCloseBtn").addEventListener("click", closeAimAssist);
-$("greensReaderBtn").addEventListener("click", openGreensReader);
-$("greensCloseBtn").addEventListener("click", closeGreensReader);
-$("greensLogBtn").addEventListener("click", logGreensPoint);
 $("holeNoteInput").addEventListener("blur", (e) => {
   setHoleNote(activeRound.courseId, holeIndex + 1, e.target.value.trim());
   renderHoleNote();
