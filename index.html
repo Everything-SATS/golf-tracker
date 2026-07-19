@@ -136,11 +136,10 @@
   /* Club picker */
   .club-picker-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
     color: var(--ink-soft); margin: 0 0 8px 2px; }
-  .club-picker { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px;
-    -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  .club-picker::-webkit-scrollbar { display: none; }
-  .club-chip { flex: 0 0 auto; background: var(--card); border: 1px solid var(--line); color: var(--ink);
-    font-weight: 800; font-size: 0.78rem; padding: 9px 15px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+  .club-picker { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
+  .club-chip { background: var(--card); border: 1px solid var(--line); color: var(--ink);
+    font-weight: 800; font-size: 0.78rem; padding: 9px 6px; border-radius: 14px; cursor: pointer;
+    white-space: nowrap; text-align: center; }
   .club-chip.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 
   /* Club stats view */
@@ -341,6 +340,25 @@ function loadRounds() {
 }
 function saveRounds(rounds) {
   localStorage.setItem(STORE_KEY, JSON.stringify(rounds));
+}
+
+// ---- Active-round autosave: phones frequently kill a backgrounded tab's JS state entirely, so an
+// in-progress round (shots, current hole) must be continuously written to storage, not just at the
+// end - otherwise minimizing the app mid-round loses everything since the last hole was finished. ----
+const ACTIVE_KEY = "golfActiveRoundState";
+
+function saveActiveRoundState() {
+  if (!activeRound) { clearActiveRoundState(); return; }
+  localStorage.setItem(ACTIVE_KEY, JSON.stringify({
+    activeRound, holeIndex, holeShots, currentClub, currentPar, currentYards,
+    mappedHoles, checkinCourseName: checkinCourse ? checkinCourse.name : null
+  }));
+}
+function loadActiveRoundState() {
+  try { return JSON.parse(localStorage.getItem(ACTIVE_KEY)); } catch (e) { return null; }
+}
+function clearActiveRoundState() {
+  localStorage.removeItem(ACTIVE_KEY);
 }
 
 function haversineYards(a, b) {
@@ -727,6 +745,7 @@ function startRound(courseInfo) {
   renderActive();
   showView("active");
   primeGps();
+  saveActiveRoundState();
 }
 
 function applyHoleParDefault() {
@@ -803,6 +822,7 @@ function logShot() {
     }
     holeShots.push(entry);
     renderActive();
+    saveActiveRoundState();
   };
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
@@ -820,6 +840,7 @@ function undoShot() {
   holeShots.pop();
   $("asLastDist").textContent = "";
   renderActive();
+  saveActiveRoundState();
 }
 
 function finishCurrentHoleInto(round) {
@@ -841,6 +862,7 @@ function finishHole() {
     endRound();
   } else {
     renderActive();
+    saveActiveRoundState();
   }
 }
 
@@ -851,11 +873,13 @@ function endRound() {
   }
   if (!activeRound.holes.length) {
     activeRound = null;
+    clearActiveRoundState();
     showView("home");
     return;
   }
   rounds.push(activeRound);
   saveRounds(rounds);
+  clearActiveRoundState();
   viewingRoundId = activeRound.id;
   renderSummary(activeRound);
   activeRound = null;
@@ -897,12 +921,13 @@ $("clubStatsBtn").addEventListener("click", () => { renderClubStats(); showView(
 $("clubStatsBackBtn").addEventListener("click", () => showView("home"));
 $("parPicker").addEventListener("click", (e) => {
   const btn = e.target.closest(".par-btn");
-  if (btn) setParButtons(Number(btn.dataset.par));
+  if (btn) { setParButtons(Number(btn.dataset.par)); saveActiveRoundState(); }
 });
 $("yardInput").addEventListener("input", (e) => {
   const v = e.target.value;
   currentYards = v === "" ? null : Number(v);
   $("yardHint").textContent = "";
+  saveActiveRoundState();
 });
 $("noteToggleBtn").addEventListener("click", () => {
   const input = $("holeNoteInput");
@@ -939,8 +964,43 @@ $("deleteRoundBtn").addEventListener("click", () => {
 $("backHomeBtn").addEventListener("click", () => { showView("home"); renderHome(); });
 $("welcomeCloseBtn").addEventListener("click", () => { $("welcomeOverlay").hidden = true; });
 
+// Belt-and-braces autosave: phones can kill a backgrounded tab's JS state without warning, so save
+// the instant the app is hidden (both events exist because different browsers fire them differently).
+document.addEventListener("visibilitychange", () => { if (document.hidden) saveActiveRoundState(); });
+window.addEventListener("pagehide", saveActiveRoundState);
+
+function tryResumeActiveRound() {
+  const saved = loadActiveRoundState();
+  if (!saved || !saved.activeRound) return;
+  const holesPlayed = saved.activeRound.holes.length;
+  const courseLabel = saved.activeRound.course || "a blank round";
+  const resume = confirm(`You have an unfinished round in progress: ${courseLabel}, ${holesPlayed} hole${holesPlayed === 1 ? "" : "s"} logged, hole ${saved.holeIndex + 1} in progress.\n\nResume it? (Cancel discards it)`);
+  if (!resume) { clearActiveRoundState(); return; }
+  activeRound = saved.activeRound;
+  holeIndex = saved.holeIndex;
+  holeShots = saved.holeShots;
+  currentClub = saved.currentClub;
+  currentPar = saved.currentPar;
+  currentYards = saved.currentYards;
+  mappedHoles = saved.mappedHoles || {};
+  renderClubPicker();
+  setParButtons(currentPar);
+  renderYardRow();
+  renderHoleNote();
+  if (saved.checkinCourseName) {
+    $("checkedInStrip").hidden = false;
+    $("checkedInStrip").textContent = `📍 ${saved.checkinCourseName}`;
+  } else {
+    $("checkedInStrip").hidden = true;
+  }
+  renderActive();
+  showView("active");
+  primeGps();
+}
+
 renderHome();
-showView("home");
+tryResumeActiveRound();
+if (!activeRound) showView("home");
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js", { scope: "/golf-tracker/" }).catch(() => {});
