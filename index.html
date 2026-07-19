@@ -109,6 +109,11 @@
   .skip-link { display: block; text-align: center; color: var(--ink-soft); font-size: 0.8rem; background: none;
     border: none; padding: 10px; width: 100%; cursor: pointer; text-decoration: underline; }
   .checkin-help { font-size: 0.72rem; color: var(--ink-soft); text-align: center; line-height: 1.6; margin: 4px 0 18px; }
+  .co-note { font-size: 0.7rem; color: var(--accent); margin-top: 2px; }
+  .skip-row { display: flex; flex-direction: column; gap: 8px; }
+  .skip-row input#blankCourseName { background: var(--card); border: 1px solid var(--line); color: var(--ink);
+    font-size: 0.85rem; padding: 10px 12px; border-radius: 12px; font-family: inherit; }
+  .skip-row .skip-link { text-decoration: none; background: var(--card); border: 1px solid var(--line); border-radius: 12px; font-weight: 700; }
 
   /* Yardage entry - always editable, in both mapped and blank rounds */
   .yard-row { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px;
@@ -117,6 +122,16 @@
   .yard-row input#yardInput { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line);
     color: var(--ink); font-weight: 800; font-size: 0.92rem; padding: 8px 10px; border-radius: 10px; font-family: inherit; }
   .yard-row .yard-hint { font-size: 0.68rem; color: var(--ink-soft); flex-basis: 100%; margin-top: 2px; }
+
+  .hole-note-row { margin-bottom: 16px; }
+  .note-toggle { display: flex; align-items: center; gap: 6px; background: var(--card); border: 1px solid var(--line);
+    color: var(--ink-soft); font-weight: 700; font-size: 0.8rem; padding: 9px 14px; border-radius: 12px;
+    cursor: pointer; font-family: inherit; width: 100%; text-align: left; }
+  .note-toggle.has-note { color: var(--ink); border-color: var(--accent); }
+  .note-toggle .note-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: none; flex-shrink: 0; }
+  .note-toggle.has-note .note-dot { display: inline-block; }
+  #holeNoteInput { width: 100%; margin-top: 8px; background: var(--card); border: 1px solid var(--line); color: var(--ink);
+    font-size: 0.85rem; padding: 10px 12px; border-radius: 12px; font-family: inherit; min-height: 64px; resize: vertical; }
 
   /* Club picker */
   .club-picker-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
@@ -196,6 +211,9 @@
 
   <!-- CHECK-IN VIEW -->
   <div id="viewCheckin" class="view" hidden>
+    <div class="section-label" id="myCoursesLabel" hidden>My Courses (from your own rounds)</div>
+    <div class="course-list" id="myCourseList" hidden></div>
+
     <button class="find-course-btn" id="findCourseBtn">📍 Find My Course</button>
     <div class="checkin-status" id="checkinStatus"></div>
     <div class="course-list" id="courseList"></div>
@@ -211,9 +229,13 @@
       <button class="big-btn" id="startCheckedInBtn">Start Round</button>
     </div>
 
-    <div class="checkin-help">Course holes are auto-filled from OpenStreetMap where mapped — yardages are map-based
-      estimates, not official tee-box distances. You can still edit any hole.</div>
-    <button class="skip-link" id="skipCheckinBtn">Skip — start a blank round instead</button>
+    <div class="checkin-help">Course holes are auto-filled from OpenStreetMap where mapped, then refined by your own
+      played yardages once you've been round once — yardages are estimates until then, not official tee-box distances.
+      You can still edit any hole.</div>
+    <div class="skip-row">
+      <input type="text" id="blankCourseName" placeholder="Course name (optional — saves your yardages for next time)">
+      <button class="skip-link" id="skipCheckinBtn">Start round</button>
+    </div>
   </div>
 
   <!-- ACTIVE ROUND VIEW -->
@@ -237,6 +259,11 @@
       <span class="yard-label">Yards</span>
       <input type="number" id="yardInput" inputmode="numeric" min="1" max="700" placeholder="e.g. 380">
       <span class="yard-hint" id="yardHint"></span>
+    </div>
+
+    <div class="hole-note-row" id="holeNoteRow" hidden>
+      <button class="note-toggle" id="noteToggleBtn">📝 Hole notes</button>
+      <textarea id="holeNoteInput" hidden placeholder="e.g. Green breaks left to right, bunker short-right, lay up short of the water"></textarea>
     </div>
 
     <div class="gps-status"><span class="gps-dot" id="gpsDot"></span><span id="gpsStatusText">Locating GPS…</span></div>
@@ -407,6 +434,64 @@ function parFromOwnHistory(courseId, holeNum) {
   return null;
 }
 
+function yardsFromOwnHistory(courseId, holeNum) {
+  if (!courseId) return null;
+  const past = rounds.filter(r => r.courseId === courseId).sort((a,b) => b.date.localeCompare(a.date));
+  for (const r of past) {
+    const h = r.holes[holeNum - 1];
+    if (h && h.yards) return h.yards;
+  }
+  return null;
+}
+
+// Distinct courses the user has actually played, most recent first - used for instant "My Courses" pick.
+function myPlayedCourses() {
+  const byId = {};
+  rounds.filter(r => r.courseId).forEach(r => {
+    if (!byId[r.courseId] || r.date > byId[r.courseId].date) {
+      byId[r.courseId] = { id: r.courseId, name: r.course, tee: r.tee, date: r.date };
+    }
+  });
+  return Object.values(byId).sort((a,b) => b.date.localeCompare(a.date));
+}
+
+function slugify(name) {
+  return "manual:" + name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+// ---- Hole notes: your own green-read / hazard notes per course+hole, since there's no reliable free
+// source for real green-slope data - honest personal notes beat guessed or fabricated numbers. ----
+function loadHoleNotes() {
+  try { return JSON.parse(localStorage.getItem("golfHoleNotes") || "{}"); } catch (e) { return {}; }
+}
+function saveHoleNotes(obj) {
+  localStorage.setItem("golfHoleNotes", JSON.stringify(obj));
+}
+function getHoleNote(courseId, holeNum) {
+  if (!courseId) return "";
+  const notes = loadHoleNotes();
+  return (notes[courseId] && notes[courseId][holeNum]) || "";
+}
+function setHoleNote(courseId, holeNum, text) {
+  if (!courseId) return;
+  const notes = loadHoleNotes();
+  if (!notes[courseId]) notes[courseId] = {};
+  if (text) notes[courseId][holeNum] = text; else delete notes[courseId][holeNum];
+  saveHoleNotes(notes);
+}
+function renderHoleNote() {
+  const holeNum = holeIndex + 1;
+  const courseId = activeRound.courseId;
+  const row = $("holeNoteRow");
+  if (!courseId) { row.hidden = true; return; }
+  row.hidden = false;
+  const note = getHoleNote(courseId, holeNum);
+  $("holeNoteInput").value = note;
+  $("holeNoteInput").hidden = true;
+  $("noteToggleBtn").classList.toggle("has-note", !!note);
+  $("noteToggleBtn").innerHTML = `<span class="note-dot"></span>📝 Hole notes${note ? "" : " (none yet — tap to add)"}`;
+}
+
 // ---- App state ----
 let rounds = loadRounds();
 let activeRound = null;   // { id, date, course, courseId, tee, holes: [{par, strokes, shots:[{lat,lon,t}]}] }
@@ -524,7 +609,30 @@ function openCheckin() {
   $("courseList").innerHTML = "";
   $("checkinStatus").textContent = "";
   $("teeSection").hidden = true;
+  $("blankCourseName").value = "";
+  renderMyCourses();
   showView("checkin");
+}
+
+function renderMyCourses() {
+  const mine = myPlayedCourses();
+  if (!mine.length) {
+    $("myCoursesLabel").hidden = true;
+    $("myCourseList").hidden = true;
+    return;
+  }
+  $("myCoursesLabel").hidden = false;
+  $("myCourseList").hidden = false;
+  $("myCourseList").innerHTML = mine.map(c => {
+    const played = new Date(c.date).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    return `<div class="course-opt" data-id="${c.id}"><div class="co-name">${c.name}</div><div class="co-note">Last played ${played}</div></div>`;
+  }).join('');
+  $("myCourseList").querySelectorAll(".course-opt").forEach(el => {
+    el.addEventListener("click", () => {
+      const c = mine.find(x => x.id === el.dataset.id);
+      startRound({ id: c.id, name: c.name, tee: c.tee || "White", mapped: {} });
+    });
+  });
 }
 
 function findCourses() {
@@ -630,9 +738,13 @@ function applyHoleParDefault() {
     const historyPar = parFromOwnHistory(activeRound.courseId, holeNum);
     currentPar = historyPar || 4;
   }
-  currentYards = (mapped && mapped.yards) ? mapped.yards : null;
+  // Your own played yardage (once you've been round) beats the OSM map estimate - it's a real
+  // measured distance, not an approximation.
+  const historyYards = yardsFromOwnHistory(activeRound.courseId, holeNum);
+  currentYards = historyYards || (mapped && mapped.yards) || null;
   setParButtons(currentPar);
   renderYardRow();
+  renderHoleNote();
 }
 
 function primeGps() {
@@ -670,9 +782,15 @@ function renderActive() {
 function renderYardRow() {
   const holeNum = holeIndex + 1;
   const mapped = mappedHoles[holeNum];
+  const historyYards = yardsFromOwnHistory(activeRound.courseId, holeNum);
   $("yardInput").value = currentYards != null ? currentYards : "";
-  $("yardHint").textContent = (mapped && mapped.yards && currentYards === mapped.yards)
-    ? "map estimate — edit if you know the real yardage" : "";
+  if (historyYards && currentYards === historyYards) {
+    $("yardHint").textContent = "from your last round here";
+  } else if (mapped && mapped.yards && currentYards === mapped.yards) {
+    $("yardHint").textContent = "map estimate — edit if you know the real yardage";
+  } else {
+    $("yardHint").textContent = "";
+  }
 }
 
 function logShot() {
@@ -767,7 +885,14 @@ $("teePicker").addEventListener("click", (e) => {
   if (btn) setTeeButtons(btn.dataset.tee);
 });
 $("startCheckedInBtn").addEventListener("click", startCheckedInRound);
-$("skipCheckinBtn").addEventListener("click", () => startRound(null));
+$("skipCheckinBtn").addEventListener("click", () => {
+  const name = $("blankCourseName").value.trim();
+  if (name) {
+    startRound({ id: slugify(name), name, tee: "White", mapped: {} });
+  } else {
+    startRound(null);
+  }
+});
 $("clubStatsBtn").addEventListener("click", () => { renderClubStats(); showView("clubStats"); });
 $("clubStatsBackBtn").addEventListener("click", () => showView("home"));
 $("parPicker").addEventListener("click", (e) => {
@@ -778,6 +903,15 @@ $("yardInput").addEventListener("input", (e) => {
   const v = e.target.value;
   currentYards = v === "" ? null : Number(v);
   $("yardHint").textContent = "";
+});
+$("noteToggleBtn").addEventListener("click", () => {
+  const input = $("holeNoteInput");
+  input.hidden = !input.hidden;
+  if (!input.hidden) input.focus();
+});
+$("holeNoteInput").addEventListener("blur", (e) => {
+  setHoleNote(activeRound.courseId, holeIndex + 1, e.target.value.trim());
+  renderHoleNote();
 });
 $("clubPicker").addEventListener("click", (e) => {
   const btn = e.target.closest(".club-chip");
