@@ -193,8 +193,9 @@
   .resume-box .resume-detail { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
     padding: 14px; margin-bottom: 20px; font-size: 0.88rem; line-height: 1.6; }
   .resume-box .resume-detail b { display: block; font-size: 1rem; margin-bottom: 4px; color: var(--accent); }
-  .resume-box button#resumeContinueBtn { margin-bottom: 10px; }
-  .resume-box button.discard-btn { background: transparent; border: 1.5px solid var(--line); color: var(--ink-soft); }
+  .welcome-box button.spaced { margin-bottom: 10px; }
+  .welcome-box button.secondary-btn { background: transparent; border: 1.5px solid var(--line); color: var(--ink-soft); }
+  .welcome-box button.danger-btn { background: var(--danger); }
 </style>
 </head>
 <body>
@@ -343,8 +344,17 @@
     <div class="w-title">🔄 Unfinished Round</div>
     <div class="w-sub">The app closed before you finished your last round.</div>
     <div class="resume-detail" id="resumeDetail"></div>
-    <button id="resumeContinueBtn">Resume Round</button>
-    <button id="resumeDiscardBtn" class="discard-btn">Discard &amp; Start Fresh</button>
+    <button id="resumeContinueBtn" class="spaced">▶ Continue Round</button>
+    <button id="resumeFinishedBtn" class="secondary-btn">✓ I've Finished — Save My Score</button>
+  </div>
+</div>
+
+<div class="welcome-overlay" id="confirmOverlay" hidden>
+  <div class="welcome-box resume-box">
+    <div class="w-title" id="confirmTitle">Confirm</div>
+    <div class="w-sub" id="confirmMessage"></div>
+    <button id="confirmYesBtn" class="spaced">Yes</button>
+    <button id="confirmNoBtn" class="secondary-btn">Cancel</button>
   </div>
 </div>
 
@@ -863,9 +873,10 @@ function finishCurrentHoleInto(round) {
   round.holes.push({ par: currentPar, yards: currentYards, strokes: Math.max(holeShots.length, 0), shots: holeShots });
 }
 
-function finishHole() {
+async function finishHole() {
   if (!holeShots.length) {
-    if (!confirm("No shots logged for this hole — finish with 0 shots recorded?")) return;
+    const ok = await showConfirm("No Shots Logged", "Finish this hole with 0 shots recorded?", "Finish Anyway");
+    if (!ok) return;
   }
   finishCurrentHoleInto(activeRound);
   holeIndex += 1;
@@ -961,8 +972,9 @@ $("clubPicker").addEventListener("click", (e) => {
 $("logShotBtn").addEventListener("click", logShot);
 $("undoShotBtn").addEventListener("click", undoShot);
 $("finishHoleBtn").addEventListener("click", finishHole);
-$("endRoundBtn").addEventListener("click", () => {
-  if (confirm("End the round now? The current hole will be saved with the shots logged so far.")) endRound();
+$("endRoundBtn").addEventListener("click", async () => {
+  const ok = await showConfirm("End Round Now?", "The current hole will be saved with the shots logged so far.", "End Round");
+  if (ok) endRound();
 });
 $("courseNameField").addEventListener("change", (e) => {
   if (viewingRoundId == null) return;
@@ -970,8 +982,9 @@ $("courseNameField").addEventListener("change", (e) => {
   const r = rounds.find(x => x.id === viewingRoundId);
   if (r) { r.course = e.target.value; saveRounds(rounds); renderHome(); }
 });
-$("deleteRoundBtn").addEventListener("click", () => {
-  if (!confirm("Delete this round? This can't be undone.")) return;
+$("deleteRoundBtn").addEventListener("click", async () => {
+  const ok = await showConfirm("Delete This Round?", "This can't be undone.", "Delete", true);
+  if (!ok) return;
   rounds = loadRounds().filter(r => r.id !== viewingRoundId);
   saveRounds(rounds);
   showView("home");
@@ -994,10 +1007,11 @@ function tryResumeActiveRound() {
   const holesPlayed = saved.activeRound.holes.length;
   const courseLabel = saved.activeRound.course || "Blank round";
   $("resumeDetail").innerHTML = `<b>${courseLabel}</b>${holesPlayed} hole${holesPlayed === 1 ? "" : "s"} logged &middot; currently on hole ${saved.holeIndex + 1}`;
+  $("welcomeOverlay").hidden = true; // skip the "how it works" tutorial - you're already mid-round
   $("resumeOverlay").hidden = false;
 }
 
-function applyResumedRound(saved) {
+function restoreResumedState(saved) {
   activeRound = saved.activeRound;
   holeIndex = saved.holeIndex;
   holeShots = saved.holeShots;
@@ -1005,6 +1019,10 @@ function applyResumedRound(saved) {
   currentPar = saved.currentPar;
   currentYards = saved.currentYards;
   mappedHoles = saved.mappedHoles || {};
+}
+
+function applyResumedRound(saved) {
+  restoreResumedState(saved);
   renderClubPicker();
   setParButtons(currentPar);
   renderYardRow();
@@ -1025,10 +1043,34 @@ $("resumeContinueBtn").addEventListener("click", () => {
   if (pendingResumeState) applyResumedRound(pendingResumeState);
   pendingResumeState = null;
 });
-$("resumeDiscardBtn").addEventListener("click", () => {
+$("resumeFinishedBtn").addEventListener("click", () => {
   $("resumeOverlay").hidden = true;
-  clearActiveRoundState();
+  if (pendingResumeState) {
+    restoreResumedState(pendingResumeState);
+    endRound(); // finalizes the round as-is and takes you straight to the save/summary screen
+  }
   pendingResumeState = null;
+});
+
+// ---- Generic themed confirm dialog, replaces the plain browser confirm() everywhere in the app ----
+let confirmResolve = null;
+function showConfirm(title, message, yesLabel, danger) {
+  $("confirmTitle").textContent = title;
+  $("confirmMessage").textContent = message;
+  $("confirmYesBtn").textContent = yesLabel || "Yes";
+  $("confirmYesBtn").classList.toggle("danger-btn", !!danger);
+  $("confirmOverlay").hidden = false;
+  return new Promise(resolve => { confirmResolve = resolve; });
+}
+$("confirmYesBtn").addEventListener("click", () => {
+  $("confirmOverlay").hidden = true;
+  if (confirmResolve) confirmResolve(true);
+  confirmResolve = null;
+});
+$("confirmNoBtn").addEventListener("click", () => {
+  $("confirmOverlay").hidden = true;
+  if (confirmResolve) confirmResolve(false);
+  confirmResolve = null;
 });
 
 renderHome();
