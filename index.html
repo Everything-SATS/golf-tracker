@@ -189,6 +189,12 @@
   .w-step .w-text b { display: block; font-size: 0.94rem; margin-bottom: 1px; }
   .welcome-box button { width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 14px;
     padding: 15px; font-size: 1rem; font-weight: 800; cursor: pointer; font-family: inherit; }
+
+  .resume-box .resume-detail { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px; margin-bottom: 20px; font-size: 0.88rem; line-height: 1.6; }
+  .resume-box .resume-detail b { display: block; font-size: 1rem; margin-bottom: 4px; color: var(--accent); }
+  .resume-box button#resumeContinueBtn { margin-bottom: 10px; }
+  .resume-box button.discard-btn { background: transparent; border: 1.5px solid var(--line); color: var(--ink-soft); }
 </style>
 </head>
 <body>
@@ -329,6 +335,16 @@
       <div class="w-step"><span class="w-icon">📊</span><div class="w-text"><b>Club Stats</b>Check your average distance per club any time from the home screen.</div></div>
     </div>
     <button id="welcomeCloseBtn">Let's Play</button>
+  </div>
+</div>
+
+<div class="welcome-overlay" id="resumeOverlay" hidden>
+  <div class="welcome-box resume-box">
+    <div class="w-title">🔄 Unfinished Round</div>
+    <div class="w-sub">The app closed before you finished your last round.</div>
+    <div class="resume-detail" id="resumeDetail"></div>
+    <button id="resumeContinueBtn">Resume Round</button>
+    <button id="resumeDiscardBtn" class="discard-btn">Discard &amp; Start Fresh</button>
   </div>
 </div>
 
@@ -969,13 +985,19 @@ $("welcomeCloseBtn").addEventListener("click", () => { $("welcomeOverlay").hidde
 document.addEventListener("visibilitychange", () => { if (document.hidden) saveActiveRoundState(); });
 window.addEventListener("pagehide", saveActiveRoundState);
 
+let pendingResumeState = null;
+
 function tryResumeActiveRound() {
   const saved = loadActiveRoundState();
   if (!saved || !saved.activeRound) return;
+  pendingResumeState = saved;
   const holesPlayed = saved.activeRound.holes.length;
-  const courseLabel = saved.activeRound.course || "a blank round";
-  const resume = confirm(`You have an unfinished round in progress: ${courseLabel}, ${holesPlayed} hole${holesPlayed === 1 ? "" : "s"} logged, hole ${saved.holeIndex + 1} in progress.\n\nResume it? (Cancel discards it)`);
-  if (!resume) { clearActiveRoundState(); return; }
+  const courseLabel = saved.activeRound.course || "Blank round";
+  $("resumeDetail").innerHTML = `<b>${courseLabel}</b>${holesPlayed} hole${holesPlayed === 1 ? "" : "s"} logged &middot; currently on hole ${saved.holeIndex + 1}`;
+  $("resumeOverlay").hidden = false;
+}
+
+function applyResumedRound(saved) {
   activeRound = saved.activeRound;
   holeIndex = saved.holeIndex;
   holeShots = saved.holeShots;
@@ -997,6 +1019,17 @@ function tryResumeActiveRound() {
   showView("active");
   primeGps();
 }
+
+$("resumeContinueBtn").addEventListener("click", () => {
+  $("resumeOverlay").hidden = true;
+  if (pendingResumeState) applyResumedRound(pendingResumeState);
+  pendingResumeState = null;
+});
+$("resumeDiscardBtn").addEventListener("click", () => {
+  $("resumeOverlay").hidden = true;
+  clearActiveRoundState();
+  pendingResumeState = null;
+});
 
 renderHome();
 tryResumeActiveRound();
